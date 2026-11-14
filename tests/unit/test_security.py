@@ -6,7 +6,9 @@ from fastapi import HTTPException
 from app.core.security import (
     create_access_token,
     decode_access_token,
+    generate_refresh_token,
     hash_password,
+    hash_refresh_token,
     verify_password,
 )
 from tests.helpers import forge_token
@@ -87,3 +89,32 @@ def test_tampered_token_is_rejected():
     tampered = ".".join([header, payload[:-2] + "AA", signature])
 
     assert_rejected(tampered)
+
+
+# --- Refresh tokens ---------------------------------------------------------
+
+
+def test_refresh_tokens_are_random_and_long():
+    first, second = generate_refresh_token(), generate_refresh_token()
+
+    assert first != second
+    assert len(first) >= 64
+
+
+def test_refresh_token_hash_is_stable_and_hides_the_token():
+    token = generate_refresh_token()
+
+    assert hash_refresh_token(token) == hash_refresh_token(token)
+    assert hash_refresh_token(token) != token
+    assert token not in hash_refresh_token(token)
+    assert len(hash_refresh_token(token)) == 64
+
+
+def test_different_refresh_tokens_have_different_hashes():
+    assert hash_refresh_token("token-one") != hash_refresh_token("token-two")
+
+
+def test_refresh_token_is_not_a_jwt():
+    # It must not be accepted as an access token, and it carries no readable data.
+    with pytest.raises(HTTPException):
+        decode_access_token(generate_refresh_token())

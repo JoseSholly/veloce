@@ -11,6 +11,7 @@ from app.core.database import Base
 from app.models import (
     courier,  # noqa: F401  (registers the table on Base.metadata)
     delivery,  # noqa: F401
+    refresh_token,  # noqa: F401
     user,  # noqa: F401
 )
 

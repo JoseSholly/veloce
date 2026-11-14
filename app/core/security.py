@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -49,3 +51,14 @@ def decode_access_token(token: str) -> dict:
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def generate_refresh_token() -> str:
+    """An opaque, unguessable token. Not a JWT: it carries no data."""
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    # SHA-256 is enough here. The token is 384 random bits, so unlike a password
+    # it cannot be guessed, and a slow hash would only make every refresh slower.
+    return hashlib.sha256(token.encode()).hexdigest()

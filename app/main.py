@@ -12,7 +12,11 @@ from app.models.courier import Courier
 from app.models.user import UserRole
 from app.routers import auth, deliveries
 from app.schemas.couriers import CourierCreate, CourierResponse, CourierUpdate
-from app.services.exceptions import BusinessRuleViolationError, ResourceNotFoundError
+from app.services.exceptions import (
+    AuthenticationError,
+    BusinessRuleViolationError,
+    ResourceNotFoundError,
+)
 
 app = FastAPI(
     title="Delivery & Dispatch API",
@@ -30,6 +34,15 @@ require_admin = Depends(require_roles(UserRole.ADMIN))
 async def handle_not_found(request: Request, exc: ResourceNotFoundError):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(AuthenticationError)
+async def handle_authentication_error(request: Request, exc: AuthenticationError):
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": str(exc)},
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 

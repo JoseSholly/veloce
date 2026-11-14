@@ -48,7 +48,8 @@ button there to log in.
 | `TEST_DATABASE_URL` | Test database. Its tables are dropped and recreated, and its name must contain `test`. |
 | `SECRET_KEY`        | Signs JWTs. Generate a long random value and keep it secret.         |
 
-Optional: `ALGORITHM` (default `HS256`) and `ACCESS_TOKEN_EXPIRE_MINUTES` (default `15`).
+Optional: `ALGORITHM` (default `HS256`), `ACCESS_TOKEN_EXPIRE_MINUTES` (default `15`)
+and `REFRESH_TOKEN_EXPIRE_DAYS` (default `7`).
 
 ### Creating the first admin
 Registration always creates a customer; nobody can choose their own role. Register
@@ -68,7 +69,7 @@ app/
 │   ├── database.py      Engine, session factory, get_db dependency
 │   ├── security.py      Password hashing and JWT creation/verification
 │   └── dependencies.py  get_current_user, CurrentUser, require_roles
-├── models/              SQLAlchemy models: User, Courier, Delivery
+├── models/              SQLAlchemy models: User, Courier, Delivery, RefreshToken
 ├── schemas/             Pydantic request and response models
 ├── services/            Business rules (DeliveryService, AuthService)
 └── routers/             auth.py, deliveries.py
@@ -89,6 +90,9 @@ into 404 and 409 responses.
 | POST   | `/auth/register`              | anyone                 | Create a customer account                |
 | POST   | `/auth/login`                 | anyone                 | OAuth2 form login (the email goes in `username`) |
 | POST   | `/auth/login/json`            | anyone                 | Login with a JSON `email` and `password` |
+| POST   | `/auth/refresh`               | anyone with a refresh token | Trade a refresh token for a new access and refresh token |
+| POST   | `/auth/logout`                | anyone with a refresh token | End one session                     |
+| POST   | `/auth/logout-all`            | any logged-in user     | End every session of the user            |
 | GET    | `/auth/me`                    | any logged-in user     | The current user                         |
 | POST   | `/deliveries`                 | customer, admin        | Request a delivery (starts `pending`)    |
 | GET    | `/deliveries`                 | any logged-in user     | List the deliveries you may see (paginated) |
@@ -98,6 +102,43 @@ into 404 and 409 responses.
 | POST   | `/couriers`                   | admin                  | Create a courier                         |
 | GET    | `/couriers`, `/couriers/{id}` | admin                  | List or read couriers                    |
 | PATCH  | `/couriers/{id}`              | admin                  | Update a courier's name or phone         |
+
+### Sessions and refresh tokens
+
+Logging in returns two tokens:
+
+- an **access token** (a JWT, 15 minutes) that you send as `Authorization: Bearer ...`;
+- a **refresh token** (an opaque random string, 7 days) that you keep safe and use only
+  to get a new pair from `POST /auth/refresh`.
+
+```bash
+# log in
+curl -X POST localhost:8000/auth/login/json -H 'Content-Type: application/json' \
+  -d '{"email": "you@example.com", "password": "password123"}'
+
+# when the access token expires, trade the refresh token for a new pair
+curl -X POST localhost:8000/auth/refresh -H 'Content-Type: application/json' \
+  -d '{"refresh_token": "<the refresh token>"}'
+```
+
+How it stays safe:
+
+- **Rotation.** Every refresh retires the token you sent and returns a new one, so each
+  refresh token works exactly once. Always store the newest one.
+- **Reuse detection.** Each login starts a session ("family") of tokens. If a retired
+  token is presented again, it was probably copied, so the whole session is revoked and
+  the next refresh by anyone in it fails. The owner just logs in again.
+- **Hashed at rest.** Only a SHA-256 hash is stored, so a leaked database cannot be used
+  to log in. The raw token is shown once, at login or refresh.
+- **Logout.** `POST /auth/logout` ends one session and `POST /auth/logout-all` ends all of
+  them. Logout always answers 204, so it cannot be used to guess tokens.
+- **Disabled users** cannot refresh.
+
+Limits worth knowing: an already-issued **access token keeps working until it expires**
+(15 minutes) even after logout, because access tokens are not checked against the
+database for revocation. Two simultaneous refreshes with the same token look like a
+replay, so one succeeds and the session is then ended. Expired and revoked rows are not
+purged automatically yet.
 
 ### Who can see which delivery
 
@@ -167,5 +208,5 @@ uv run ruff format .     # format
 
 - `.env` holds secrets and is ignored by git. Commit only `.env.example`.
 - Passwords are stored as Argon2 hashes and never returned by the API.
-- Access tokens last 15 minutes by default. There are no refresh tokens yet.
+- Access tokens last 15 minutes by default. Refresh tokens last 7 days, rotate on every use, and are stored only as hashes.
 - Emails are stored in lowercase, so `A@x.com` and `a@x.com` are the same account.

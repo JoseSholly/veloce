@@ -6,9 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser
-from app.core.security import create_access_token
-from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse
-from app.services.auth_service import AuthService
+from app.schemas.user import (
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserCreate,
+    UserResponse,
+)
+from app.services.auth_service import AuthService, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -31,8 +36,16 @@ async def register(
         )
 
 
+def _token_response(tokens: TokenPair) -> TokenResponse:
+    return TokenResponse(
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+    )
+
+
 async def _login(db: AsyncSession, email: str, password: str) -> TokenResponse:
-    user = await AuthService(db).authenticate(email, password)
+    service = AuthService(db)
+    user = await service.authenticate(email, password)
 
     if user is None:
         raise HTTPException(
@@ -41,7 +54,7 @@ async def _login(db: AsyncSession, email: str, password: str) -> TokenResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+    return _token_response(await service.create_tokens(user))
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -63,6 +76,36 @@ async def login_json(
 ):
     """The same login with a JSON body and a proper `email` field."""
     return await _login(db, data.email, data.password)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(
+    data: RefreshRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Trade a refresh token for a new access token and a new refresh token.
+
+    The refresh token you send stops working. Keep the new one.
+    """
+    return _token_response(await AuthService(db).refresh(data.refresh_token))
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    data: RefreshRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """End this session. Always 204, so it cannot be used to probe tokens."""
+    await AuthService(db).logout(data.refresh_token)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """End every session of the logged-in user."""
+    await AuthService(db).logout_all(current_user)
 
 
 @router.get("/me", response_model=UserResponse)

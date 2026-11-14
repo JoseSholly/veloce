@@ -128,6 +128,9 @@ async def committed_session_factory():
 
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE deliveries, couriers, users RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE refresh_tokens, deliveries, couriers, users "
+                "RESTART IDENTITY CASCADE"
+            )
         )
     await engine.dispose()

@@ -8,3 +8,7 @@ class ResourceNotFoundError(ServiceError):
 
 class BusinessRuleViolationError(ServiceError):
     pass
+
+
+class AuthenticationError(ServiceError):
+    """The caller could not be authenticated (for example a bad refresh token)."""
