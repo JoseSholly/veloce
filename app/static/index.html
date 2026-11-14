@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veloce</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Signed out -->
+  <main id="auth-view" class="auth" hidden>
+    <div class="auth-card">
+      <h1 class="brand">Veloce</h1>
+      <p class="muted">Delivery &amp; dispatch</p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-auth-tab="login" type="button">Sign in</button>
+        <button class="tab" data-auth-tab="register" type="button">Create account</button>
+      </div>
+
+      <form id="login-form" class="stack">
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+
+      <form id="register-form" class="stack" hidden>
+        <label>Full name <input name="full_name" required minlength="2" maxlength="100" autocomplete="name"></label>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></label>
+        <button class="btn primary" type="submit">Create account</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Signed in -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <span class="brand">Veloce</span>
+      <nav class="nav">
+        <a href="#/deliveries" data-nav="deliveries">Deliveries</a>
+        <a href="#/couriers" data-nav="couriers" data-role="admin">Couriers</a>
+        <a href="#/account" data-nav="account">Account</a>
+      </nav>
+      <span class="user"><span id="user-name"></span> <span id="user-role" class="badge"></span></span>
+    </header>
+
+    <main class="content">
+      <!-- Deliveries -->
+      <section id="page-deliveries" class="page" hidden>
+        <div class="page-head">
+          <h2>Deliveries</h2>
+          <button class="btn primary" id="new-delivery-btn" data-role="customer admin" type="button">New delivery</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Recipient</th><th>From</th><th>To</th><th>Courier</th><th>Status</th></tr></thead>
+            <tbody id="deliveries-body"></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <button class="btn" id="prev-page" type="button">Previous</button>
+          <span id="page-info" class="muted"></span>
+          <button class="btn" id="next-page" type="button">Next</button>
+        </div>
+      </section>
+
+      <!-- Couriers (admin) -->
+      <section id="page-couriers" class="page" hidden>
+        <div class="page-head">
+          <h2>Couriers</h2>
+          <div class="row">
+            <select id="courier-filter" aria-label="Filter couriers">
+              <option value="">All</option>
+              <option value="true">Available</option>
+              <option value="false">Busy</option>
+            </select>
+            <button class="btn primary" id="new-courier-btn" type="button">New courier</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Status</th><th></th></tr></thead>
+            <tbody id="couriers-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Account -->
+      <section id="page-account" class="page" hidden>
+        <div class="page-head"><h2>Account</h2></div>
+        <dl class="details" id="account-details"></dl>
+        <div class="row">
+          <button class="btn" id="logout-btn" type="button">Sign out</button>
+          <button class="btn danger" id="logout-all-btn" type="button">Sign out everywhere</button>
+        </div>
+        <p class="muted small" id="api-status"></p>
+      </section>
+    </main>
+  </div>
+
+  <!-- Side panel, used for details and forms -->
+  <div id="panel-backdrop" class="backdrop" hidden></div>
+  <aside id="panel" class="panel" hidden aria-modal="true" role="dialog">
+    <div class="panel-head">
+      <h3 id="panel-title"></h3>
+      <button class="icon-btn" id="panel-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div id="panel-body"></div>
+  </aside>
+
+  <!-- Templates -->
+  <template id="tpl-delivery-form">
+    <form class="stack">
+      <fieldset>
+        <legend>Pickup</legend>
+        <label>Address <input name="pickup.address" required minlength="3"></label>
+        <label>City <input name="pickup.city" required minlength="2"></label>
+        <div class="row">
+          <label>Latitude <input name="pickup.latitude" type="number" step="any" min="-90" max="90" required></label>
+          <label>Longitude <input name="pickup.longitude" type="number" step="any" min="-180" max="180" required></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Drop-off</legend>
+        <label>Address <input name="dropoff.address" required minlength="3"></label>
+        <label>City <input name="dropoff.city" required minlength="2"></label>
+        <div class="row">
+          <label>Latitude <input name="dropoff.latitude" type="number" step="any" min="-90" max="90" required></label>
+          <label>Longitude <input name="dropoff.longitude" type="number" step="any" min="-180" max="180" required></label>
+        </div>
+      </fieldset>
+      <label>Recipient name <input name="recipient_name" required minlength="2" maxlength="100"></label>
+      <label>Package description <textarea name="package_description" required maxlength="500" rows="2"></textarea></label>
+      <label>Note (optional) <textarea name="delivery_note" rows="2"></textarea></label>
+      <button class="btn primary" type="submit">Create delivery</button>
+    </form>
+  </template>
+
+  <template id="tpl-courier-form">
+    <form class="stack">
+      <label>Name <input name="name" required minlength="2" maxlength="100"></label>
+      <label>Phone <input name="phone" type="tel" required minlength="10" maxlength="20"></label>
+      <button class="btn primary" type="submit">Save</button>
+    </form>
+  </template>
+
+  <div id="toast" class="toast" hidden role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

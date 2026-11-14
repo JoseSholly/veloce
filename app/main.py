@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +27,13 @@ app = FastAPI(
 
 app.include_router(deliveries.router)
 app.include_router(auth.router)
+
+# Browser UI for the API, served from the same origin so no CORS is needed.
+app.mount(
+    "/ui",
+    StaticFiles(directory=Path(__file__).parent / "static", html=True),
+    name="ui",
+)
 
 
 require_admin = Depends(require_roles(UserRole.ADMIN))

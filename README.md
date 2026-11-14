@@ -40,6 +40,11 @@ uv run fastapi dev app/main.py
 The interactive docs are at <http://127.0.0.1:8000/docs>. Use the **Authorize**
 button there to log in.
 
+A browser UI is at <http://127.0.0.1:8000/ui/>. It covers every endpoint: sign in and
+register, list and create deliveries, assign couriers and cancel deliveries (admin),
+manage couriers (admin), and sign out of one session or all of them. The pages change
+with your role. It is plain HTML, CSS and JavaScript in `app/static/` with no build step.
+
 ### Environment variables
 
 | Variable            | Purpose                                                              |
@@ -63,7 +68,8 @@ UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
 
 ```
 app/
-├── main.py              App setup, exception handlers, courier routes
+├── main.py              App setup, exception handlers, courier routes, /ui mount
+├── static/              Browser UI (index.html, app.css, app.js)
 ├── core/
 │   ├── config.py        Settings read from .env
 │   ├── database.py      Engine, session factory, get_db dependency
