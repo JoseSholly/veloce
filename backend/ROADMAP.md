@@ -75,11 +75,18 @@ Invariants the **database** enforces, so a bug in a service cannot break them:
 
 **ADR-001:** Modular monolith over microservices.
 
+## Done ahead of plan: public codes and courier onboarding ✅
+
+- [x] Public codes: `VEL-CUS/COU/ADM-0100` for accounts (a trigger assigns them and re-issues them when the role changes) and `VEL-DEL-<timestamp>-<8 chars>` for deliveries. Integer ids stay in addresses and the API, and are never shown.
+- [x] Admins onboard couriers: creating a courier creates their login with a one-time temporary password, and `must_change_password` locks the API until they set their own (`POST /auth/change-password`, which also ends every other session).
+- [x] Every courier must have an account (`couriers.user_id NOT NULL`, `ON DELETE RESTRICT`). `scripts/link_orphan_couriers.py` creates accounts for existing unlinked couriers.
+
 ## Day 2: Identity, tenancy and isolation
 
 **Must**
 - [ ] `Organization` and `Membership(user_id, organization_id, role, status)` models. The roles are `admin`, `dispatcher`, `courier` and `customer`.
-- [ ] A migration that creates a `default` organization and moves every user's current `users.role` into a membership, then drops `users.role`. Test it with downgrade and upgrade on a copy of the dev database.
+- [ ] A migration that creates a `default` organization and moves every user's current `users.role` into a membership, then drops `users.role`.
+  **Careful:** the account-code trigger (`assign_user_code`, see `app/db/codes.py`) reads `users.role`. Decide where codes live before dropping the column: either keep `users.role` as the account's primary role, or move the trigger onto memberships. Test it with downgrade and upgrade on a copy of the dev database.
 - [ ] Add `organization_id` to `couriers` and `deliveries`. Backfill it with the default organization, then make it `NOT NULL`.
 - [ ] Put an `org` claim in the access token. Login takes an optional `organization_id`; when the user has exactly one membership, it is chosen automatically.
 - [ ] A `CurrentMember` dependency that resolves the user, the organization and the role. Every query in every service filters by `organization_id`.

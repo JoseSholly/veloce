@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, LayoutDashboard, LogOut, Menu, Package, Truck, User, X } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import { useAuth } from '@/auth/AuthProvider'
@@ -77,18 +78,39 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ]
 
-/** Breadcrumb trail for the current path, e.g. Deliveries › #7. */
+/**
+ * Reads a query's cached data and re-renders when it changes, without ever
+ * fetching. (A useQuery here would need its own fetch function, and could
+ * replace the page's one on the next refetch.)
+ */
+function useCachedData<T>(queryKey: unknown[] | null): T | undefined {
+  const queryClient = useQueryClient()
+  return useSyncExternalStore(
+    (onChange) => queryClient.getQueryCache().subscribe(onChange),
+    () => (queryKey ? queryClient.getQueryData<T>(queryKey) : undefined),
+  )
+}
+
+/**
+ * Breadcrumb trail for the current path, e.g. Deliveries › VEL-DEL-….
+ * Addresses carry internal ids; the last crumb shows the record's public code,
+ * read from the data the page has already loaded (no extra request).
+ */
 function useBreadcrumbs(): { label: string; to?: string }[] {
   const { pathname } = useLocation()
   const parts = pathname.replace(/^\/app\/?/, '').split('/').filter(Boolean)
   const section: Record<string, string> = { deliveries: 'Deliveries', couriers: 'Couriers', profile: 'Profile' }
+  const detailKey = { deliveries: 'delivery', couriers: 'courier' }[parts[0] as 'deliveries' | 'couriers']
+  const id = Number(parts[1])
+
+  const detail = useCachedData<{ code?: string }>(detailKey && Number.isInteger(id) ? [detailKey, id] : null)
 
   if (parts.length === 0) return [{ label: 'Overview' }]
   const crumbs: { label: string; to?: string }[] = [
     { label: section[parts[0]] ?? parts[0], to: parts.length > 1 ? `/app/${parts[0]}` : undefined },
   ]
   if (parts[1] === 'new') crumbs.push({ label: 'New' })
-  else if (parts[1]) crumbs.push({ label: `#${parts[1]}` })
+  else if (parts[1]) crumbs.push({ label: detail?.code ?? 'Details' })
   return crumbs
 }
 
@@ -314,8 +336,20 @@ export function AppShell() {
 
 /* ------------------------------ Route guards ----------------------------- */
 
-/** Only signed-in users (optionally with one of `roles`) see the children. */
-export function RequireAuth({ roles, children }: { roles?: UserRole[]; children: ReactNode }) {
+/**
+ * Only signed-in users (optionally with one of `roles`) see the children.
+ * Accounts still on a temporary password are sent to choose their own first,
+ * unless the page is the one where they do that (`allowPasswordChange`).
+ */
+export function RequireAuth({
+  roles,
+  allowPasswordChange = false,
+  children,
+}: {
+  roles?: UserRole[]
+  allowPasswordChange?: boolean
+  children: ReactNode
+}) {
   const { user, loading, error, retry } = useAuth()
   const location = useLocation()
 
@@ -332,6 +366,7 @@ export function RequireAuth({ roles, children }: { roles?: UserRole[]; children:
     const next = encodeURIComponent(location.pathname + location.search)
     return <Navigate to={`/login?next=${next}`} replace />
   }
+  if (user.must_change_password && !allowPasswordChange) return <Navigate to="/password" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/app" replace />
   return <>{children}</>
 }

@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.delivery import DeliveryStatus
 
@@ -24,8 +26,14 @@ class AssignCourierRequest(BaseModel):
 
 
 class DeliveryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    # `id` is for addresses and API calls; `code` is what people see.
     id: int
+    code: str
     courier_id: int | None
+    courier_code: str | None
+    created_at: datetime
     pickup: Location
     dropoff: Location
     recipient_name: str

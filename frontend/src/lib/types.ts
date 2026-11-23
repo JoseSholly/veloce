@@ -1,13 +1,16 @@
 // Mirrors the backend's Pydantic schemas (backend/app/schemas). Keep in step.
+// `id` is only for addresses and API calls. Show `code` to people, never `id`.
 
 export type UserRole = 'customer' | 'courier' | 'admin'
 
 export interface User {
   id: number
+  code: string
   email: string
   full_name: string
   is_active: boolean
   role: UserRole
+  must_change_password: boolean
 }
 
 export interface TokenPair {
@@ -33,7 +36,10 @@ export interface Location {
 
 export interface Delivery {
   id: number
+  code: string
   courier_id: number | null
+  courier_code: string | null
+  created_at: string
   pickup: Location
   dropoff: Location
   recipient_name: string
@@ -59,16 +65,22 @@ export interface DeliveryList {
 
 export interface Courier {
   id: number
+  code: string
   name: string
+  email: string
   phone: string
   available: boolean
-  user_id: number | null
 }
 
 export interface CourierCreate {
   name: string
+  email: string
   phone: string
-  user_id?: number | null
+}
+
+/** Returned once, when an admin onboards a courier. */
+export interface CourierCreated extends Courier {
+  temporary_password: string
 }
 
 export interface Readiness {

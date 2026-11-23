@@ -1,4 +1,8 @@
-COURIER = {"name": "Test Courier", "phone": "+2348012345678"}
+COURIER = {
+    "name": "Test Courier",
+    "email": "new.courier@example.com",
+    "phone": "+2348012345678",
+}
 
 
 async def test_create_courier(admin_client):

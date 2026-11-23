@@ -19,6 +19,9 @@ from app.core.middleware import REQUEST_ID_HEADER
 from app.services.exceptions import (
     AuthenticationError,
     BusinessRuleViolationError,
+    ConflictError,
+    InvalidInputError,
+    PasswordChangeRequiredError,
     ResourceNotFoundError,
     ServiceError,
 )
@@ -41,7 +44,10 @@ STATUS_CODES = {
 SERVICE_ERRORS: dict[type[ServiceError], int] = {
     ResourceNotFoundError: 404,
     AuthenticationError: 401,
+    PasswordChangeRequiredError: 403,
+    InvalidInputError: 400,
     BusinessRuleViolationError: 409,
+    ConflictError: 409,
 }
 
 
@@ -94,7 +100,9 @@ async def handle_service_error(request: Request, exc: ServiceError):
         (code for cls, code in SERVICE_ERRORS.items() if isinstance(exc, cls)), 400
     )
     headers = {"WWW-Authenticate": "Bearer"} if status_code == 401 else None
-    return error_response(request, status_code, str(exc), headers=headers)
+    return error_response(
+        request, status_code, str(exc), code=exc.code, headers=headers
+    )
 
 
 async def handle_unexpected_error(request: Request, exc: Exception):

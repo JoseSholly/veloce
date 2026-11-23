@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Truck } from 'lucide-react'
+import { Check, Copy, Plus, Truck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout'
@@ -9,7 +9,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/form'
 import { Card, EmptyState, ErrorState, Pill, Skeleton } from '@/components/ui/surface'
 import { api, ApiError, errorMessage } from '@/lib/api'
-import type { Courier, CourierCreate } from '@/lib/types'
+import type { Courier, CourierCreate, CourierCreated } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const FILTERS = [
@@ -17,7 +17,6 @@ const FILTERS = [
   { value: 'true', label: 'Available' },
   { value: 'false', label: 'Busy' },
 ] as const
-
 
 function Availability({ available }: { available: boolean }) {
   return available ? (
@@ -102,27 +101,30 @@ export function CouriersPage() {
                 <th className="px-5 py-3 font-medium">Courier</th>
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="hidden px-5 py-3 font-medium md:table-cell">Phone</th>
-                <th className="hidden px-5 py-3 font-medium lg:table-cell">Login</th>
+                <th className="hidden px-5 py-3 font-medium lg:table-cell">Email</th>
                 <th className="px-5 py-3 text-right font-medium">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {query.data.map((courier) => (
                 <tr key={courier.id} className="relative transition-colors hover:bg-surface-2/60">
-                  <td className="hidden px-5 py-3.5 font-mono text-muted sm:table-cell">#{courier.id}</td>
+                  <td className="hidden px-5 py-3.5 font-mono whitespace-nowrap text-muted sm:table-cell">
+                    {courier.code}
+                  </td>
                   <td className="max-w-0 px-5 py-3.5">
+                    {/* The link's ::after covers the whole row, so any part of it opens the courier. */}
                     <Link
                       to={`/app/couriers/${courier.id}`}
                       className="block truncate font-medium after:absolute after:inset-0 after:content-['']"
                     >
                       {courier.name}
                     </Link>
-                    <p className="truncate font-mono text-muted md:hidden">{courier.phone}</p>
+                    <p className="truncate font-mono text-muted sm:hidden">{courier.code}</p>
                   </td>
-                  <td className="hidden px-5 py-3.5 font-mono text-muted md:table-cell">{courier.phone}</td>
-                  <td className="hidden px-5 py-3.5 text-muted lg:table-cell">
-                    {courier.user_id ? `User #${courier.user_id}` : 'Not linked'}
+                  <td className="hidden px-5 py-3.5 font-mono whitespace-nowrap text-muted md:table-cell">
+                    {courier.phone}
                   </td>
+                  <td className="hidden px-5 py-3.5 whitespace-nowrap text-muted lg:table-cell">{courier.email}</td>
                   <td className="px-5 py-3.5 text-right">
                     <Availability available={courier.available} />
                   </td>
@@ -136,62 +138,117 @@ export function CouriersPage() {
   )
 }
 
-/* --------------------------------- Create -------------------------------- */
+/* ------------------------------- Onboard --------------------------------- */
 
 export function NewCourierPage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [created, setCreated] = useState<CourierCreated | null>(null)
 
   const create = useMutation({
-    mutationFn: (body: CourierCreate) => api<Courier>('/couriers', { method: 'POST', body }),
+    mutationFn: (body: CourierCreate) => api<CourierCreated>('/couriers', { method: 'POST', body }),
     onSuccess: (courier) => {
       void queryClient.invalidateQueries({ queryKey: ['couriers'] })
-      toast.success(`${courier.name} added to the fleet`)
-      navigate(`/app/couriers/${courier.id}`)
+      setCreated(courier)
     },
     onError: (err) => {
       if (err instanceof ApiError && Object.keys(err.fields).length) setErrors(err.fields)
+      else if (err instanceof ApiError && err.status === 409) setErrors({ email: err.message })
       else toast.error(errorMessage(err))
     },
   })
 
+  if (created) return <CourierCreatedPanel courier={created} onAnother={() => setCreated(null)} />
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    const userId = String(form.get('user_id') ?? '').trim()
     setErrors({})
     create.mutate({
       name: String(form.get('name') ?? '').trim(),
+      email: String(form.get('email') ?? '').trim(),
       phone: String(form.get('phone') ?? '').trim(),
-      user_id: userId ? Number(userId) : null,
     })
   }
 
   return (
     <>
-      <PageHeader title="New courier" />
-      <Card className="max-w-xl p-6 sm:p-7">
+      <PageHeader
+        title="New courier"
+        description="Creates the courier's sign-in account too. You'll get a temporary password to pass on."
+      />
+      <Card className="max-w-xl rounded-2xl p-6 sm:p-7">
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
-          <Field label="Name" htmlFor="name" error={errors.name}>
-            <Input id="name" name="name" required minLength={2} maxLength={100} autoFocus />
+          <Field label="Full name" htmlFor="name" error={errors.name}>
+            <Input id="name" name="name" required minLength={2} maxLength={100} autoFocus autoComplete="off" />
+          </Field>
+          <Field label="Email" htmlFor="email" error={errors.email} hint="The courier signs in with this.">
+            <Input id="email" name="email" type="email" required autoComplete="off" />
           </Field>
           <Field label="Phone" htmlFor="phone" error={errors.phone} hint="10 to 20 characters, e.g. +2348012345678.">
-            <Input id="phone" name="phone" type="tel" required minLength={10} maxLength={20} />
+            <Input id="phone" name="phone" type="tel" required minLength={10} maxLength={20} autoComplete="off" />
           </Field>
-          <Field
-            label="Linked user ID"
-            htmlFor="user_id"
-            error={errors.user_id}
-            hint="Optional. Link the courier's login account so they can see their deliveries."
-          >
-            <Input id="user_id" name="user_id" type="number" min={1} />
-          </Field>
-          <Button type="submit" size="lg" loading={create.isPending} className="mt-2 self-start">
+          <Button type="submit" loading={create.isPending} className="mt-2 self-start">
             Add courier
           </Button>
         </form>
       </Card>
+    </>
+  )
+}
+
+/** Shown once after onboarding: the only time the temporary password exists. */
+function CourierCreatedPanel({ courier, onAnother }: { courier: CourierCreated; onAnother: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(courier.temporary_password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Copy failed. Select the password and copy it by hand.')
+    }
+  }
+
+  return (
+    <>
+      <PageHeader title="Courier added" description={`${courier.name} can now sign in.`} />
+      <Card className="max-w-xl overflow-hidden rounded-2xl">
+        <dl className="divide-y divide-border">
+          <div className="flex justify-between gap-4 px-6 py-4">
+            <dt className="text-sm text-muted">Courier</dt>
+            <dd className="font-mono">{courier.code}</dd>
+          </div>
+          <div className="flex justify-between gap-4 px-6 py-4">
+            <dt className="text-sm text-muted">Sign-in email</dt>
+            <dd className="truncate">{courier.email}</dd>
+          </div>
+          <div className="px-6 py-5">
+            <dt className="text-sm text-muted">Temporary password</dt>
+            <dd className="mt-2 flex items-center gap-2">
+              <code className="flex-1 rounded-xl bg-surface-2 px-4 py-3 font-mono text-lg tracking-wider select-all">
+                {courier.temporary_password}
+              </code>
+              <Button variant="secondary" size="icon" onClick={() => void copy()} aria-label="Copy password">
+                {copied ? <Check /> : <Copy />}
+              </Button>
+            </dd>
+            <p className="mt-3 text-sm text-muted">
+              Shown only now. Pass it to {courier.name.split(' ')[0]} securely; they'll choose their own password the
+              first time they sign in.
+            </p>
+          </div>
+        </dl>
+      </Card>
+      <div className="mt-6 flex gap-2">
+        <Link to={`/app/couriers/${courier.id}`} className={buttonVariants()}>
+          View courier
+        </Link>
+        <Button variant="secondary" onClick={onAnother}>
+          Add another
+        </Button>
+      </div>
     </>
   )
 }
@@ -227,15 +284,13 @@ export function CourierDetailPage() {
   if (query.isError) {
     const notFound = query.error instanceof ApiError && query.error.status === 404
     return (
-      <>
-        <Card>
-          {notFound ? (
-            <EmptyState icon={<Truck />} title="Courier not found" />
-          ) : (
-            <ErrorState message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
-          )}
-        </Card>
-      </>
+      <Card className="rounded-2xl">
+        {notFound ? (
+          <EmptyState icon={<Truck />} title="Courier not found" />
+        ) : (
+          <ErrorState message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
+        )}
+      </Card>
     )
   }
 
@@ -263,17 +318,16 @@ export function CourierDetailPage() {
       <PageHeader
         title={courier.name}
         description={
-          <span className="font-mono text-sm">
-            Courier #{courier.id}
-            {courier.user_id ? ` · user #${courier.user_id}` : ' · no linked account'}
+          <span>
+            <span className="font-mono">{courier.code}</span> · {courier.email}
           </span>
         }
         actions={<Availability available={courier.available} />}
       />
-      <Card className="max-w-xl p-6 sm:p-7">
+      <Card className="max-w-xl rounded-2xl p-6 sm:p-7">
         {/* key resets the form when fresh data arrives */}
         <form key={`${courier.name}|${courier.phone}`} onSubmit={onSubmit} className="flex flex-col gap-5">
-          <Field label="Name" htmlFor="name" error={errors.name}>
+          <Field label="Full name" htmlFor="name" error={errors.name}>
             <Input id="name" name="name" defaultValue={courier.name} required minLength={2} maxLength={100} />
           </Field>
           <Field label="Phone" htmlFor="phone" error={errors.phone}>

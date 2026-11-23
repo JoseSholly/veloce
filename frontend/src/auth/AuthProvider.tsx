@@ -16,6 +16,8 @@ interface AuthContextValue {
   register: (data: { email: string; full_name: string; password: string }) => Promise<User>
   logout: () => Promise<void>
   logoutAll: () => Promise<void>
+  /** Replaces the password; every other session ends and this one continues. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<User>
   hasRole: (...roles: UserRole[]) => boolean
 }
 
@@ -96,6 +98,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [reset])
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const tokens = await api<TokenPair>('/auth/change-password', {
+        method: 'POST',
+        body: { current_password: currentPassword, new_password: newPassword },
+      })
+      session.save(tokens)
+      const fresh = await api<User>('/auth/me')
+      queryClient.setQueryData(['me'], fresh)
+      return fresh
+    },
+    [queryClient],
+  )
+
   const user = hasSession ? me.data : undefined
   const value: AuthContextValue = {
     user,
@@ -107,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     logoutAll,
+    changePassword,
     hasRole: (...roles) => Boolean(user && roles.includes(user.role)),
   }
 

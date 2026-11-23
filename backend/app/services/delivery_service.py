@@ -113,7 +113,8 @@ class DeliveryService:
                 raise BusinessRuleViolationError(f"Courier {courier_id} not available")
 
             courier.available = False
-            delivery.courier_id = courier.id
+            # Set the relationship (not just the id) so the response can show its code.
+            delivery.courier = courier
             delivery.status = DeliveryStatus.ASSIGNED
 
             await self.db.commit()

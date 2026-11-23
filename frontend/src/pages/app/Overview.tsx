@@ -166,7 +166,9 @@ export function OverviewPage() {
               <tbody className="divide-y divide-border">
                 {recent.map((delivery) => (
                   <tr key={delivery.id} className="relative transition-colors hover:bg-surface-2/60">
-                    <td className="hidden px-5 py-3 font-mono text-muted sm:table-cell">#{delivery.id}</td>
+                    <td className="hidden px-5 py-3 font-mono text-xs whitespace-nowrap text-muted sm:table-cell">
+                      {delivery.code}
+                    </td>
                     <td className="px-5 py-3">
                       {/* The link's ::after covers the whole row, so any part of it opens the delivery. */}
                       <Link
@@ -176,7 +178,7 @@ export function OverviewPage() {
                         {delivery.recipient_name}
                       </Link>
                       <p className="text-muted sm:hidden">
-                        #{delivery.id} · {delivery.pickup.city} → {delivery.dropoff.city}
+                        {delivery.pickup.city} → {delivery.dropoff.city}
                       </p>
                     </td>
                     <td className="hidden px-5 py-3 text-muted md:table-cell">

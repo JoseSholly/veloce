@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User, UserRole
+from app.services.exceptions import PasswordChangeRequiredError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-async def get_current_user(
+async def get_authenticated_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
@@ -35,6 +36,18 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    return user
+
+
+# Signed in, possibly still holding a temporary password. Only for the few
+# routes such a user needs: reading their profile and changing the password.
+PendingUser = Annotated[User, Depends(get_authenticated_user)]
+
+
+async def get_current_user(user: PendingUser) -> User:
+    """A signed-in user who may use the API: no temporary password pending."""
+    if user.must_change_password:
+        raise PasswordChangeRequiredError("Choose a new password before continuing")
     return user
 
 

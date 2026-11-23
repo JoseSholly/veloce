@@ -27,7 +27,12 @@ async def test_customer_cannot_use_courier_routes(client, method, path):
 
 async def test_customer_cannot_create_a_courier(client):
     response = await client.post(
-        "/api/v1/couriers", json={"name": "Someone", "phone": "+2348012345678"}
+        "/api/v1/couriers",
+        json={
+            "name": "Someone",
+            "email": "someone@example.com",
+            "phone": "+2348012345678",
+        },
     )
 
     assert response.status_code == 403
@@ -43,7 +48,12 @@ async def test_courier_user_cannot_use_courier_routes(anonymous_client, courier_
 
 async def test_admin_can_use_courier_routes(admin_client):
     created = await admin_client.post(
-        "/api/v1/couriers", json={"name": "Someone", "phone": "+2348012345678"}
+        "/api/v1/couriers",
+        json={
+            "name": "Someone",
+            "email": "someone@example.com",
+            "phone": "+2348012345678",
+        },
     )
 
     assert created.status_code == 201

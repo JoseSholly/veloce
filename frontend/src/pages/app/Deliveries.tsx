@@ -94,7 +94,9 @@ export function DeliveriesPage() {
             <tbody className="divide-y divide-border">
               {query.data.items.map((delivery) => (
                 <tr key={delivery.id} className="relative transition-colors hover:bg-surface-2/60">
-                  <td className="hidden px-5 py-3.5 font-mono text-muted sm:table-cell">#{delivery.id}</td>
+                  <td className="hidden px-5 py-3.5 font-mono text-xs whitespace-nowrap text-muted sm:table-cell">
+                    {delivery.code}
+                  </td>
                   <td className="max-w-0 px-5 py-3.5">
                     {/* The link's ::after covers the whole row, so any part of it opens the delivery. */}
                     <Link
@@ -104,7 +106,7 @@ export function DeliveriesPage() {
                       {delivery.recipient_name}
                     </Link>
                     <p className="truncate text-muted">
-                      <span className="font-mono sm:hidden">#{delivery.id} · </span>
+                      <span className="font-mono text-xs sm:hidden">{delivery.code} · </span>
                       <span className="md:hidden">{delivery.pickup.city} → {delivery.dropoff.city} · </span>
                       {delivery.package_description}
                     </p>
@@ -113,7 +115,7 @@ export function DeliveriesPage() {
                     {delivery.pickup.city} → {delivery.dropoff.city}
                   </td>
                   <td className="hidden px-5 py-3.5 text-muted lg:table-cell">
-                    {delivery.courier_id ? `#${delivery.courier_id}` : '—'}
+                    <span className="font-mono text-xs">{delivery.courier_code ?? '—'}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <StatusBadge status={delivery.status} />
@@ -218,7 +220,7 @@ export function NewDeliveryPage() {
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       queryClient.setQueryData(['delivery', delivery.id], delivery)
-      toast.success(`Delivery #${delivery.id} requested`)
+      toast.success('Delivery requested', { description: delivery.code })
       navigate(`/app/deliveries/${delivery.id}`)
     },
     onError: (err) => {
@@ -368,10 +370,17 @@ export function DeliveryDetailPage() {
       <PageHeader
         title={
           <span className="flex flex-wrap items-center gap-3">
-            Delivery <span className="font-mono text-subtle">#{delivery.id}</span>
+            Delivery for {delivery.recipient_name}
           </span>
         }
-        description={`For ${delivery.recipient_name}`}
+        description={
+          <span>
+            <span className="font-mono text-sm">{delivery.code}</span>
+            <span className="text-subtle"> · </span>
+            Requested{' '}
+            {new Date(delivery.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+          </span>
+        }
         actions={<StatusBadge status={delivery.status} />}
       />
 
@@ -406,10 +415,10 @@ export function DeliveryDetailPage() {
                 <Truck className="size-4" />
                 {hasRole('admin') ? (
                   <Link to={`/app/couriers/${delivery.courier_id}`} className="underline underline-offset-4">
-                    Courier #{delivery.courier_id}
+                    {delivery.courier_code}
                   </Link>
                 ) : (
-                  <>Courier #{delivery.courier_id}</>
+                  <span className="font-mono">{delivery.courier_code}</span>
                 )}
               </p>
             ) : (
@@ -447,7 +456,7 @@ function AssignPanel({ delivery }: { delivery: Delivery }) {
       api<Delivery>(`/deliveries/${delivery.id}/assign`, { method: 'POST', body: { courier_id: id } }),
     onSuccess: (result) => {
       updated(result)
-      toast.success(`Courier #${result.courier_id} assigned`)
+      toast.success(`Courier ${result.courier_code} assigned`)
     },
     onError: (err) => {
       // A conflict is normal under concurrency: someone else got there first.
@@ -492,7 +501,7 @@ function AssignPanel({ delivery }: { delivery: Delivery }) {
                 )}
               >
                 <span className="font-medium">{courier.name}</span>
-                <span className="font-mono text-xs text-subtle">#{courier.id}</span>
+                <span className="font-mono text-xs text-subtle">{courier.code}</span>
               </button>
             ))}
           </div>
@@ -518,7 +527,7 @@ function CancelPanel({ delivery }: { delivery: Delivery }) {
     mutationFn: () => api<Delivery>(`/deliveries/${delivery.id}/cancel`, { method: 'POST' }),
     onSuccess: (result) => {
       updated(result)
-      toast.success(`Delivery #${result.id} cancelled`)
+      toast.success('Delivery cancelled', { description: result.code })
     },
     onError: (err) => toast.error(errorMessage(err)),
     onSettled: () => setConfirming(false),

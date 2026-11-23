@@ -5,8 +5,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import CurrentUser
+from app.core.dependencies import PendingUser
 from app.schemas.user import (
+    ChangePasswordRequest,
     LoginRequest,
     RefreshRequest,
     TokenResponse,
@@ -101,7 +102,7 @@ async def logout(
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_all(
-    current_user: CurrentUser,
+    current_user: PendingUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """End every session of the logged-in user."""
@@ -109,5 +110,19 @@ async def logout_all(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: CurrentUser):
+async def get_me(current_user: PendingUser):
+    """Works with a temporary password too, so the client can see it must be changed."""
     return current_user
+
+
+@router.post("/change-password", response_model=TokenResponse)
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: PendingUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Set a new password. Every existing session ends; the response starts a new one."""
+    tokens = await AuthService(db).change_password(
+        current_user, data.current_password, data.new_password
+    )
+    return _token_response(tokens)

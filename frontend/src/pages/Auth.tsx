@@ -292,3 +292,113 @@ export function RegisterPage() {
     </AuthLayout>
   )
 }
+
+/* ---------------------------- Choose password ---------------------------- */
+
+/**
+ * Two cases, one page: a courier replacing the temporary password an admin
+ * gave them (they cannot use the app until they do), or anyone changing theirs.
+ */
+export function PasswordPage() {
+  const { user, changePassword, logout } = useAuth()
+  const navigate = useNavigate()
+  const [fields, setFields] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string>()
+  const [pending, setPending] = useState(false)
+  const firstTime = Boolean(user?.must_change_password)
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const current = String(form.get('current_password'))
+    const next = String(form.get('new_password'))
+    setError(undefined)
+    setFields({})
+    if (next !== String(form.get('confirm_password'))) {
+      setFields({ confirm_password: 'The passwords do not match' })
+      return
+    }
+    setPending(true)
+    try {
+      await changePassword(current, next)
+      toast.success(firstTime ? 'Password set. Welcome to Veloce.' : 'Password changed')
+      navigate('/app', { replace: true })
+    } catch (err) {
+      if (err instanceof ApiError && Object.keys(err.fields).length) setFields(err.fields)
+      else setError(errorMessage(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <AuthLayout>
+      <Heading
+        eyebrow={firstTime ? 'One more step' : 'Security'}
+        title={firstTime ? 'Choose your password' : 'Change password'}
+        subtitle={
+          firstTime
+            ? 'You signed in with a temporary password. Replace it with one only you know.'
+            : 'Every other session ends when you change it.'
+        }
+      />
+      <form onSubmit={onSubmit} className="mt-10 flex flex-col gap-6">
+        <AuthField
+          label={firstTime ? 'Temporary password' : 'Current password'}
+          name="current_password"
+          type="password"
+          autoComplete="current-password"
+          required
+          autoFocus
+          error={fields.current_password}
+        />
+        <AuthField
+          label="New password"
+          name="new_password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
+          required
+          minLength={8}
+          maxLength={128}
+          error={fields.new_password}
+        />
+        <AuthField
+          label="Confirm new password"
+          name="confirm_password"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          maxLength={128}
+          error={fields.confirm_password}
+        />
+        <FormError message={error} />
+        <Button type="submit" loading={pending} className={submitClass}>
+          {firstTime ? 'Set password and continue' : 'Change password'}
+        </Button>
+      </form>
+      <p className="mt-8 text-muted">
+        {firstTime ? (
+          <>
+            Not you?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                navigate('/', { replace: true })
+                void logout()
+              }}
+              className="font-medium text-accent hover:underline"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <Link to="/app/profile" className="font-medium text-accent hover:underline">
+            Back to profile
+          </Link>
+        )}
+      </p>
+    </AuthLayout>
+  )
+}

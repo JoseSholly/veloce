@@ -72,6 +72,48 @@ through `POST /api/v1/auth/register`, then promote that account in `psql`:
 UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
 ```
 
+The account's code changes with the role (for example `VEL-CUS-0101` becomes
+`VEL-ADM-0102`); a database trigger handles that, even for changes made in psql.
+
+### Onboarding a courier
+
+Couriers do not sign up. An admin adds them, and that creates their login too:
+
+1. The admin creates the courier (name, email, phone) with `POST /api/v1/couriers`
+   or the New courier page.
+2. The response contains a **temporary password**, shown only this once. The admin
+   passes it to the courier.
+3. The courier signs in with it. Until they choose their own password with
+   `POST /api/v1/auth/change-password`, every other endpoint answers
+   `403 password_change_required` (only `/auth/me`, `/auth/change-password` and
+   `/auth/logout-all` work).
+4. Changing the password ends every other session and returns a fresh token pair.
+
+Every courier must have an account: `couriers.user_id` is `NOT NULL`, and deleting a
+user who has a courier profile is refused.
+
+**Upgrading a database that already has couriers without accounts:** the
+`c4d8e1a9b3f6` migration refuses to run until each one is linked. Run:
+
+```bash
+uv run alembic upgrade b7c1e9f2a4d0
+uv run python -m scripts.link_orphan_couriers   # prints each new login once
+uv run alembic upgrade head
+```
+
+The script gives each account a placeholder email (`first.last@couriers.example.com`)
+and a temporary password.
+
+### Public codes
+
+Internal integer ids are used in addresses and API calls, but are never shown to people.
+Every record also has a public code, and the UI shows only that:
+
+| Record | Code | How it is made |
+| --- | --- | --- |
+| Customer, courier, admin | `VEL-CUS-0100`, `VEL-COU-0100`, `VEL-ADM-0100` | One counter per role, from 100. A trigger assigns it, and issues a new one when the role changes. Old codes are never reused. |
+| Delivery | `VEL-DEL-20261123153012-K7Q2M9XA` | UTC creation time plus 8 random uppercase letters and digits |
+
 ## Project layout
 
 ```
@@ -140,12 +182,13 @@ logs for its ID.
 | POST   | `/api/v1/auth/logout`                | anyone with a refresh token | End one session                     |
 | POST   | `/api/v1/auth/logout-all`            | any logged-in user     | End every session of the user            |
 | GET    | `/api/v1/auth/me`                    | any logged-in user     | The current user                         |
+| POST   | `/api/v1/auth/change-password`       | any logged-in user     | Set a new password; ends other sessions, returns new tokens |
 | POST   | `/api/v1/deliveries`                 | customer, admin        | Request a delivery (starts `pending`)    |
 | GET    | `/api/v1/deliveries`                 | any logged-in user     | List the deliveries you may see (paginated) |
 | GET    | `/api/v1/deliveries/{id}`            | any logged-in user     | One delivery, if you may see it          |
 | POST   | `/api/v1/deliveries/{id}/assign`     | admin                  | Assign an available courier              |
 | POST   | `/api/v1/deliveries/{id}/cancel`     | customer, admin        | Cancel a `pending` or `assigned` delivery |
-| POST   | `/api/v1/couriers`                   | admin                  | Create a courier                         |
+| POST   | `/api/v1/couriers`                   | admin                  | Onboard a courier: creates their login and returns a one-time temporary password |
 | GET    | `/api/v1/couriers`, `/api/v1/couriers/{id}` | admin                  | List or read couriers                    |
 | PATCH  | `/api/v1/couriers/{id}`              | admin                  | Update a courier's name or phone         |
 

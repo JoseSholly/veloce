@@ -5,7 +5,7 @@ import { CourierDetailPage, CouriersPage, NewCourierPage } from '@/pages/app/Cou
 import { DeliveriesPage, DeliveryDetailPage, NewDeliveryPage } from '@/pages/app/Deliveries'
 import { OverviewPage } from '@/pages/app/Overview'
 import { ProfilePage } from '@/pages/app/Profile'
-import { LoginPage, RegisterPage } from '@/pages/Auth'
+import { LoginPage, PasswordPage, RegisterPage } from '@/pages/Auth'
 import Landing from '@/pages/Landing'
 import NotFound from '@/pages/NotFound'
 
@@ -13,6 +13,14 @@ const router = createBrowserRouter([
   { path: '/', element: <Landing /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  {
+    path: '/password',
+    element: (
+      <RequireAuth allowPasswordChange>
+        <PasswordPage />
+      </RequireAuth>
+    ),
+  },
   {
     path: '/app',
     element: (

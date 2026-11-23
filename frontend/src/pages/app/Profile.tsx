@@ -1,12 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/auth/AuthProvider'
 import { PageHeader } from '@/components/layout'
 import { Avatar } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, Pill } from '@/components/ui/surface'
 import { errorMessage } from '@/lib/api'
 import type { UserRole } from '@/lib/types'
@@ -74,15 +74,24 @@ export function ProfilePage() {
               <span className="capitalize">{user.role}</span>
               <span className="mt-0.5 block text-sm text-muted">{ROLE_DESCRIPTION[user.role]}</span>
             </Row>
-            <Row label="User ID">
-              <span className="font-mono">{user.id}</span>
+            <Row label="Account ID">
+              <span className="font-mono">{user.code}</span>
             </Row>
           </dl>
         </Section>
 
         {/* Security */}
-        <Section title="Security" description="Manage where you are signed in.">
+        <Section title="Security" description="Your password and where you are signed in.">
           <div className="divide-y divide-border">
+            <div className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium">Password</p>
+                <p className="text-sm text-muted">Changing it signs you out everywhere else.</p>
+              </div>
+              <Link to="/password" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Change password
+              </Link>
+            </div>
             <div className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-medium">This device</p>

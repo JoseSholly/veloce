@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -42,12 +43,23 @@ async def make_courier(
     available: bool = True,
     user_id: int | None = None,
 ) -> Courier:
-    """Insert a courier. flush() sends the INSERT (so we get an id) without committing."""
+    """Insert a courier with its login account. flush() sends the INSERTs without committing.
+
+    Every courier needs an account; without `user_id` a fresh courier account is made.
+    """
+    if user_id is None:
+        user = await make_user(
+            session,
+            email=f"courier-{uuid.uuid4().hex[:10]}@example.com",
+            role=UserRole.COURIER,
+        )
+    else:
+        user = await session.get(User, user_id)
     courier = Courier(
         name="Test Courier",
         phone="+2348012345678",
         available=available,
-        user_id=user_id,
+        user=user,
     )
     session.add(courier)
     await session.flush()

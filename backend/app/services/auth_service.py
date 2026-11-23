@@ -17,7 +17,7 @@ from app.core.security import (
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.services.exceptions import AuthenticationError
+from app.services.exceptions import AuthenticationError, InvalidInputError
 
 
 def normalize_email(email: str) -> str:
@@ -184,3 +184,28 @@ class AuthService:
             .values(revoked_at=datetime.now(UTC))
         )
         await self._commit()
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> TokenPair:
+        """Replace the password, end every session, and start a fresh one.
+
+        Also clears must_change_password, which unlocks the rest of the API
+        for accounts created with a temporary password.
+        """
+        if not verify_password(current_password, user.hashed_password):
+            # 400, not 401: the caller is authenticated, only this field is wrong.
+            raise InvalidInputError("Current password is incorrect")
+        if current_password == new_password:
+            raise InvalidInputError("Choose a password different from the current one")
+
+        user.hashed_password = hash_password(new_password)
+        user.must_change_password = False
+        # Any copy of an old session dies with the old password.
+        await self.db.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
+        )
+        # create_tokens commits the password change and the new session together.
+        return await self.create_tokens(user)
