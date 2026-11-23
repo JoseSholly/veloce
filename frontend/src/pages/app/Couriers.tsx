@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ChevronRight, Plus, Truck } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { Plus, Truck } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
@@ -18,14 +18,6 @@ const FILTERS = [
   { value: 'false', label: 'Busy' },
 ] as const
 
-function BackLink({ to, children }: { to: string; children: ReactNode }) {
-  return (
-    <Link to={to} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-      <ArrowLeft className="size-4" />
-      {children}
-    </Link>
-  )
-}
 
 function Availability({ available }: { available: boolean }) {
   return available ? (
@@ -80,7 +72,7 @@ export function CouriersPage() {
         ))}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-2xl">
         {query.isPending ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 4 }, (_, i) => (
@@ -104,24 +96,40 @@ export function CouriersPage() {
             {filter ? 'Try another filter.' : 'Add couriers so deliveries can be assigned.'}
           </EmptyState>
         ) : (
-          <ul className="divide-y divide-border">
-            {query.data.map((courier) => (
-              <li key={courier.id}>
-                <Link
-                  to={`/app/couriers/${courier.id}`}
-                  className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-2"
-                >
-                  <span className="hidden w-14 font-mono text-sm text-subtle sm:block">#{courier.id}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{courier.name}</p>
-                    <p className="truncate font-mono text-sm text-muted">{courier.phone}</p>
-                  </div>
-                  <Availability available={courier.available} />
-                  <ChevronRight className="hidden size-4 text-subtle sm:block" />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <table className="w-full text-sm">
+            <thead className="hidden text-left text-xs text-subtle sm:table-header-group">
+              <tr className="border-b border-border">
+                <th className="px-5 py-3 font-medium">Courier</th>
+                <th className="px-5 py-3 font-medium">Name</th>
+                <th className="hidden px-5 py-3 font-medium md:table-cell">Phone</th>
+                <th className="hidden px-5 py-3 font-medium lg:table-cell">Login</th>
+                <th className="px-5 py-3 text-right font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {query.data.map((courier) => (
+                <tr key={courier.id} className="relative transition-colors hover:bg-surface-2/60">
+                  <td className="hidden px-5 py-3.5 font-mono text-muted sm:table-cell">#{courier.id}</td>
+                  <td className="max-w-0 px-5 py-3.5">
+                    <Link
+                      to={`/app/couriers/${courier.id}`}
+                      className="block truncate font-medium after:absolute after:inset-0 after:content-['']"
+                    >
+                      {courier.name}
+                    </Link>
+                    <p className="truncate font-mono text-muted md:hidden">{courier.phone}</p>
+                  </td>
+                  <td className="hidden px-5 py-3.5 font-mono text-muted md:table-cell">{courier.phone}</td>
+                  <td className="hidden px-5 py-3.5 text-muted lg:table-cell">
+                    {courier.user_id ? `User #${courier.user_id}` : 'Not linked'}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <Availability available={courier.available} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </Card>
     </>
@@ -162,7 +170,7 @@ export function NewCourierPage() {
 
   return (
     <>
-      <PageHeader back={<BackLink to="/app/couriers">Couriers</BackLink>} title="New courier" />
+      <PageHeader title="New courier" />
       <Card className="max-w-xl p-6 sm:p-7">
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
           <Field label="Name" htmlFor="name" error={errors.name}>
@@ -220,7 +228,6 @@ export function CourierDetailPage() {
     const notFound = query.error instanceof ApiError && query.error.status === 404
     return (
       <>
-        <BackLink to="/app/couriers">Couriers</BackLink>
         <Card>
           {notFound ? (
             <EmptyState icon={<Truck />} title="Courier not found" />
@@ -254,7 +261,6 @@ export function CourierDetailPage() {
   return (
     <>
       <PageHeader
-        back={<BackLink to="/app/couriers">Couriers</BackLink>}
         title={courier.name}
         description={
           <span className="font-mono text-sm">

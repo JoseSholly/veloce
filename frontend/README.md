@@ -29,22 +29,24 @@ browser sees one origin and the backend needs no CORS settings.
 | `/` | everyone | Landing page: a scroll-driven story of one delivery, live API status from `/health/ready` |
 | `/login` | everyone | Sign in (split layout: brand panel and form) |
 | `/register` | everyone | Create a customer account (same layout, its own page) |
-| `/app` | signed in | Overview: a greeting by time of day, key numbers, latest deliveries, quick actions |
+| `/app` | signed in | Overview: greeting, quick actions, KPI cards, latest deliveries table, status breakdown, fleet (admins) |
 | `/app/deliveries` | signed in | Paginated list: customers see their own, couriers see theirs, admins see all |
 | `/app/deliveries/new` | customer, admin | Request a delivery. Validation errors appear on each field |
 | `/app/deliveries/:id` | signed in | Progress, addresses and package. Admins assign couriers; customers and admins cancel |
 | `/app/couriers` (`/new`, `/:id`) | admin | Fleet list with filters, create, edit |
-| `/app/account` | signed in | Profile, sign out, sign out everywhere, theme, API status |
+| `/app/profile` | signed in | Profile details and sessions (sign out, sign out everywhere). `/app/account` redirects here |
 
 ## How it works
 
 - **Theme:** light or dark. On a first visit it follows the system setting. Once the user
-  picks one with the switch (in the header, the sidebar and Account), the choice is saved
+  picks one with the switch (in the site header and the dashboard top bar), the choice is saved
   in `localStorage`. A small script in `index.html` applies it before the first paint, so
   there is no flash. Colors are CSS variables in `src/index.css`, and components only use
   token names (`bg-surface`, `text-muted`, …), never raw colors.
-- **Layout:** signed-in pages have a fixed sidebar on large screens and a slide-in drawer on
-  phones. The drawer closes on navigation and on Escape.
+- **Layout:** signed-in pages have a sidebar (grouped navigation, API status) and a top bar
+  with breadcrumbs, the theme switch and an account menu (Profile, Sign out). On phones the
+  sidebar becomes a drawer that closes on navigation and on Escape. Lists are tables with
+  column headers; on phones they collapse to one stacked column, and every row is clickable.
 - **Motion:** the landing story (`src/components/landing/DeliveryStory.tsx`) pins a map
   while the user scrolls. Scroll progress moves one delivery through its five steps, and
   the courier follows route points that are measured once after mount. Other sections fade

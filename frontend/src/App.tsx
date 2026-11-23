@@ -1,10 +1,10 @@
-import { createBrowserRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 
 import { AppShell, RequireAuth } from '@/components/layout'
-import { AccountPage } from '@/pages/app/Account'
 import { CourierDetailPage, CouriersPage, NewCourierPage } from '@/pages/app/Couriers'
 import { DeliveriesPage, DeliveryDetailPage, NewDeliveryPage } from '@/pages/app/Deliveries'
 import { OverviewPage } from '@/pages/app/Overview'
+import { ProfilePage } from '@/pages/app/Profile'
 import { LoginPage, RegisterPage } from '@/pages/Auth'
 import Landing from '@/pages/Landing'
 import NotFound from '@/pages/NotFound'
@@ -56,7 +56,8 @@ const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
-      { path: 'account', element: <AccountPage /> },
+      { path: 'profile', element: <ProfilePage /> },
+      { path: 'account', element: <Navigate to="/app/profile" replace /> },
     ],
   },
   { path: '*', element: <NotFound /> },

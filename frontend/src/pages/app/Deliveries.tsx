@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ChevronRight, MapPin, Package, Plus, Truck } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { MapPin, Package, Plus, Truck } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
@@ -17,14 +17,6 @@ import { cn } from '@/lib/utils'
 const PAGE_SIZE = 10
 const CANCELLABLE: DeliveryStatus[] = ['pending', 'assigned']
 
-function BackLink({ to, children }: { to: string; children: ReactNode }) {
-  return (
-    <Link to={to} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-      <ArrowLeft className="size-4" />
-      {children}
-    </Link>
-  )
-}
 
 /* --------------------------------- List ---------------------------------- */
 
@@ -63,7 +55,7 @@ export function DeliveriesPage() {
         }
       />
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-2xl">
         {query.isPending ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 5 }, (_, i) => (
@@ -89,45 +81,67 @@ export function DeliveriesPage() {
               : 'Request your first delivery and it will show up here.'}
           </EmptyState>
         ) : (
-          <ul className={cn('divide-y divide-border', query.isPlaceholderData && 'opacity-60')}>
-            {query.data.items.map((delivery) => (
-              <li key={delivery.id}>
-                <Link
-                  to={`/app/deliveries/${delivery.id}`}
-                  className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-2"
-                >
-                  <span className="hidden w-14 font-mono text-sm text-subtle sm:block">#{delivery.id}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{delivery.recipient_name}</p>
-                    <p className="truncate text-sm text-muted">
-                      <span className="font-mono text-subtle sm:hidden">#{delivery.id} · </span>
-                      {delivery.pickup.city} → {delivery.dropoff.city} · {delivery.package_description}
+          <table className={cn('w-full text-sm', query.isPlaceholderData && 'opacity-60')}>
+            <thead className="hidden text-left text-xs text-subtle sm:table-header-group">
+              <tr className="border-b border-border">
+                <th className="px-5 py-3 font-medium">Delivery</th>
+                <th className="px-5 py-3 font-medium">Recipient</th>
+                <th className="hidden px-5 py-3 font-medium md:table-cell">Route</th>
+                <th className="hidden px-5 py-3 font-medium lg:table-cell">Courier</th>
+                <th className="px-5 py-3 text-right font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {query.data.items.map((delivery) => (
+                <tr key={delivery.id} className="relative transition-colors hover:bg-surface-2/60">
+                  <td className="hidden px-5 py-3.5 font-mono text-muted sm:table-cell">#{delivery.id}</td>
+                  <td className="max-w-0 px-5 py-3.5">
+                    {/* The link's ::after covers the whole row, so any part of it opens the delivery. */}
+                    <Link
+                      to={`/app/deliveries/${delivery.id}`}
+                      className="block truncate font-medium after:absolute after:inset-0 after:content-['']"
+                    >
+                      {delivery.recipient_name}
+                    </Link>
+                    <p className="truncate text-muted">
+                      <span className="font-mono sm:hidden">#{delivery.id} · </span>
+                      <span className="md:hidden">{delivery.pickup.city} → {delivery.dropoff.city} · </span>
+                      {delivery.package_description}
                     </p>
-                  </div>
-                  <StatusBadge status={delivery.status} />
-                  <ChevronRight className="hidden size-4 text-subtle sm:block" />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  </td>
+                  <td className="hidden px-5 py-3.5 whitespace-nowrap text-muted md:table-cell">
+                    {delivery.pickup.city} → {delivery.dropoff.city}
+                  </td>
+                  <td className="hidden px-5 py-3.5 text-muted lg:table-cell">
+                    {delivery.courier_id ? `#${delivery.courier_id}` : '—'}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <StatusBadge status={delivery.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {query.data && query.data.total > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, query.data.total)} of {query.data.total}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>
+                  Previous
+                </Button>
+                <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </Card>
 
-      {query.data && query.data.total > PAGE_SIZE && (
-        <div className="mt-5 flex items-center justify-between text-sm text-muted">
-          <span>
-            Page {page} of {totalPages} · {query.data.total} deliveries
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>
-              Previous
-            </Button>
-            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
     </>
   )
 }
@@ -234,7 +248,6 @@ export function NewDeliveryPage() {
   return (
     <>
       <PageHeader
-        back={<BackLink to="/app/deliveries">Deliveries</BackLink>}
         title="New delivery"
         description="Where it starts, where it goes, and what you are sending."
       />
@@ -333,7 +346,6 @@ export function DeliveryDetailPage() {
     const notFound = query.error instanceof ApiError && query.error.status === 404
     return (
       <>
-        <BackLink to="/app/deliveries">Deliveries</BackLink>
         <Card>
           {notFound ? (
             <EmptyState icon={<Package />} title="Delivery not found">
@@ -354,7 +366,6 @@ export function DeliveryDetailPage() {
   return (
     <>
       <PageHeader
-        back={<BackLink to="/app/deliveries">Deliveries</BackLink>}
         title={
           <span className="flex flex-wrap items-center gap-3">
             Delivery <span className="font-mono text-subtle">#{delivery.id}</span>
