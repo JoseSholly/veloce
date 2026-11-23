@@ -66,7 +66,7 @@ Invariants the **database** enforces, so a bug in a service cannot break them:
 - [x] JSON logging. Middleware assigns an `X-Request-ID` (or reuses the incoming one), puts it on every log line and returns it in the response.
 - [x] One error shape: `{"error": {"code": "...", "message": "...", "request_id": "..."}}` for 4xx, 5xx and validation errors.
 - [x] Fix the existing ruff errors in `migrations/versions/9d3d02af73d3_*.py`, and add `ruff format --check`.
-- [x] `.github/workflows/ci.yml`: ruff, `alembic upgrade head` + `alembic check`, a downgrade-to-base round trip, then pytest. CI uses a throwaway PostGIS service container, because GitHub's runners have no host database. Set `working-directory: backend`.
+- [x] `.github/workflows/ci.yml`: ruff, `alembic upgrade head` + `alembic check`, a downgrade-to-base round trip, then pytest. CI uses a throwaway `postgres:16` service container, because GitHub's runners have no host database. Set `working-directory: backend`.
 
 **Stretch**
 - [ ] Pyright in basic mode, added to CI.
@@ -154,7 +154,7 @@ Write it up in `docs/experiments/001-concurrent-assignment.md`.
 ## Day 7: Geospatial matching
 
 **Must**
-- [ ] Install PostGIS into the host PostgreSQL (for example, Stack Builder on Windows; the package must match the server's major version), then run `CREATE EXTENSION postgis` in a migration. CI already has it. Add `couriers.last_location geography(Point,4326)`, `last_location_at`, and a GiST index. Add `deliveries.pickup_point geography(Point,4326)`.
+- [ ] Install PostGIS into the host PostgreSQL (for example, Stack Builder on Windows; the package must match the server's major version), then run `CREATE EXTENSION postgis` in a migration. Switch the CI service to `postgis/postgis:16-3.4` and add an `include_object` filter in `migrations/env.py`, so `alembic check` ignores the TIGER geocoder tables that image installs. Add `couriers.last_location geography(Point,4326)`, `last_location_at`, and a GiST index. Add `deliveries.pickup_point geography(Point,4326)`.
 - [ ] `TrackingPoint(courier_id, delivery_id, location, recorded_at, received_at)` with an index on `(delivery_id, recorded_at)`.
 - [ ] `POST /couriers/me/location` with `{lat, lng, recorded_at}`. It updates `last_location` **only if** the new `recorded_at` is later than the stored one (a conditional `UPDATE ... WHERE last_location_at < :recorded_at`), so late points never overwrite newer ones. It appends a tracking point while a delivery is active.
 - [ ] `GET /dispatch/{delivery_id}/candidates?radius_km=5&limit=10`. It filters by `ST_DWithin` (which uses the index), on shift, not busy, location fresher than 5 minutes, and vehicle capacity at least the package weight. It ranks by distance and returns `distance_m`, `location_age_s` and a `reasons` list ("2.1 km away", "location 40 s old").
