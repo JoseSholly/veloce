@@ -1,218 +1,40 @@
 # Veloce
 
-A delivery and dispatch API built with FastAPI, async SQLAlchemy 2 and PostgreSQL.
+A multi-tenant delivery and dispatch platform. Customers request deliveries,
+dispatchers assign couriers, couriers carry them out, and customers track them live.
 
-Customers request deliveries, admins assign couriers to them, and couriers see
-the deliveries assigned to them. Access is enforced by role and by ownership.
+| Directory | What it is |
+| --- | --- |
+| [backend/](backend/) | FastAPI, async SQLAlchemy 2 and PostgreSQL API ([README](backend/README.md), [roadmap](backend/ROADMAP.md)) |
+| [frontend/](frontend/) | React, TypeScript and Vite: landing page and dashboard ([README](frontend/README.md), [roadmap](frontend/ROADMAP.md)) |
 
-## Stack
+The build plan is in [ROADMAP.md](ROADMAP.md).
 
-- **FastAPI** for the HTTP layer and dependency injection
-- **SQLAlchemy 2 (async)** with **asyncpg** on **PostgreSQL**
-- **Alembic** for schema migrations
-- **JWT** (PyJWT) for login tokens, **Argon2** (pwdlib) for password hashing
-- **pytest**, **pytest-asyncio** and **httpx** for tests
-- **uv** for dependencies, **ruff** for linting and formatting
+## Running the backend
 
-## Getting started
-
-You need Python 3.12 (see `.python-version`), [uv](https://docs.astral.sh/uv/),
-and a running PostgreSQL.
+PostgreSQL runs on your machine. Redis runs in Docker.
 
 ```bash
-# 1. Install dependencies
+docker compose up -d          # Redis on port 6380
+cd backend
 uv sync
-
-# 2. Create two databases (the second one is for tests)
-#    CREATE DATABASE delivery_db;
-#    CREATE DATABASE test_delivery_db;
-
-# 3. Configure the environment
-cp .env.example .env        # then edit the values
-
-# 4. Create the tables
+cp .env.example .env          # then edit the values
 uv run alembic upgrade head
-
-# 5. Run the API
 uv run fastapi dev app/main.py
 ```
 
-The interactive docs are at <http://127.0.0.1:8000/docs>. Use the **Authorize**
-button there to log in.
+The API docs are at <http://127.0.0.1:8000/docs>. See [backend/README.md](backend/README.md)
+for the full setup, the API and the tests.
 
-A browser UI is at <http://127.0.0.1:8000/ui/>. It covers every endpoint: sign in and
-register, list and create deliveries, assign couriers and cancel deliveries (admin),
-manage couriers (admin), and sign out of one session or all of them. The pages change
-with your role. It is plain HTML, CSS and JavaScript in `app/static/` with no build step.
+## Running the frontend
 
-### Environment variables
-
-| Variable            | Purpose                                                              |
-| ------------------- | -------------------------------------------------------------------- |
-| `DATABASE_URL`      | Development database, e.g. `postgresql+asyncpg://user:pass@localhost:5432/delivery_db` |
-| `TEST_DATABASE_URL` | Test database. Its tables are dropped and recreated, and its name must contain `test`. |
-| `SECRET_KEY`        | Signs JWTs. Generate a long random value and keep it secret.         |
-
-Optional: `ALGORITHM` (default `HS256`), `ACCESS_TOKEN_EXPIRE_MINUTES` (default `15`)
-and `REFRESH_TOKEN_EXPIRE_DAYS` (default `7`).
-
-### Creating the first admin
-Registration always creates a customer; nobody can choose their own role. Register
-through `POST /auth/register`, then promote that account in `psql`:
-
-```sql
-UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
-```
-
-## Project layout
-
-```
-app/
-├── main.py              App setup, exception handlers, courier routes, /ui mount
-├── static/              Browser UI (index.html, app.css, app.js)
-├── core/
-│   ├── config.py        Settings read from .env
-│   ├── database.py      Engine, session factory, get_db dependency
-│   ├── security.py      Password hashing and JWT creation/verification
-│   └── dependencies.py  get_current_user, CurrentUser, require_roles
-├── models/              SQLAlchemy models: User, Courier, Delivery, RefreshToken
-├── schemas/             Pydantic request and response models
-├── services/            Business rules (DeliveryService, AuthService)
-└── routers/             auth.py, deliveries.py
-migrations/              Alembic environment and versions
-tests/                   unit/, integration/, concurrency/
-```
-
-Responsibilities are split deliberately: routers deal with HTTP, services own the
-business rules and the transaction, and the database is the final authority on
-uniqueness and locking. Services raise their own exceptions
-(`ResourceNotFoundError`, `BusinessRuleViolationError`), and `main.py` turns them
-into 404 and 409 responses.
-
-## API
-
-| Method | Path                          | Who                    | Purpose                                  |
-| ------ | ----------------------------- | ---------------------- | ---------------------------------------- |
-| POST   | `/auth/register`              | anyone                 | Create a customer account                |
-| POST   | `/auth/login`                 | anyone                 | OAuth2 form login (the email goes in `username`) |
-| POST   | `/auth/login/json`            | anyone                 | Login with a JSON `email` and `password` |
-| POST   | `/auth/refresh`               | anyone with a refresh token | Trade a refresh token for a new access and refresh token |
-| POST   | `/auth/logout`                | anyone with a refresh token | End one session                     |
-| POST   | `/auth/logout-all`            | any logged-in user     | End every session of the user            |
-| GET    | `/auth/me`                    | any logged-in user     | The current user                         |
-| POST   | `/deliveries`                 | customer, admin        | Request a delivery (starts `pending`)    |
-| GET    | `/deliveries`                 | any logged-in user     | List the deliveries you may see (paginated) |
-| GET    | `/deliveries/{id}`            | any logged-in user     | One delivery, if you may see it          |
-| POST   | `/deliveries/{id}/assign`     | admin                  | Assign an available courier              |
-| POST   | `/deliveries/{id}/cancel`     | customer, admin        | Cancel a `pending` or `assigned` delivery |
-| POST   | `/couriers`                   | admin                  | Create a courier                         |
-| GET    | `/couriers`, `/couriers/{id}` | admin                  | List or read couriers                    |
-| PATCH  | `/couriers/{id}`              | admin                  | Update a courier's name or phone         |
-
-### Sessions and refresh tokens
-
-Logging in returns two tokens:
-
-- an **access token** (a JWT, 15 minutes) that you send as `Authorization: Bearer ...`;
-- a **refresh token** (an opaque random string, 7 days) that you keep safe and use only
-  to get a new pair from `POST /auth/refresh`.
+In a second terminal, with the backend running:
 
 ```bash
-# log in
-curl -X POST localhost:8000/auth/login/json -H 'Content-Type: application/json' \
-  -d '{"email": "you@example.com", "password": "password123"}'
-
-# when the access token expires, trade the refresh token for a new pair
-curl -X POST localhost:8000/auth/refresh -H 'Content-Type: application/json' \
-  -d '{"refresh_token": "<the refresh token>"}'
+cd frontend
+npm install
+npm run dev                   # open http://localhost:5173
 ```
 
-How it stays safe:
-
-- **Rotation.** Every refresh retires the token you sent and returns a new one, so each
-  refresh token works exactly once. Always store the newest one.
-- **Reuse detection.** Each login starts a session ("family") of tokens. If a retired
-  token is presented again, it was probably copied, so the whole session is revoked and
-  the next refresh by anyone in it fails. The owner just logs in again.
-- **Hashed at rest.** Only a SHA-256 hash is stored, so a leaked database cannot be used
-  to log in. The raw token is shown once, at login or refresh.
-- **Logout.** `POST /auth/logout` ends one session and `POST /auth/logout-all` ends all of
-  them. Logout always answers 204, so it cannot be used to guess tokens.
-- **Disabled users** cannot refresh.
-
-Limits worth knowing: an already-issued **access token keeps working until it expires**
-(15 minutes) even after logout, because access tokens are not checked against the
-database for revocation. Two simultaneous refreshes with the same token look like a
-replay, so one succeeds and the session is then ended. Expired and revoked rows are not
-purged automatically yet.
-
-### Who can see which delivery
-
-| Role     | Sees                                         |
-| -------- | -------------------------------------------- |
-| customer | Only deliveries they created                 |
-| courier  | Only deliveries assigned to their courier profile |
-| admin    | Every delivery                               |
-
-A delivery you may not see returns **404**, the same as one that doesn't exist, so
-the API never confirms that someone else's delivery exists. Requests without a valid
-token get **401**, and a valid user without the right role gets **403**.
-
-### Delivery lifecycle
-
-```
-pending ──assign──> assigned ──> picked_up ──> in_transit ──> delivered
-   │                    │
-   └────────cancel──────┴──> cancelled
-```
-
-The API currently implements `pending`, `assigned` and `cancelled`. The later states
-exist in the model, but no endpoint moves a delivery into them yet. Only `pending`
-and `assigned` deliveries can be cancelled, and cancelling releases the courier. Assigning and cancelling lock the rows involved (`SELECT ... FOR UPDATE`,
-always delivery first, then courier), so two simultaneous requests cannot assign the
-same courier twice.
-
-## Database migrations
-
-```bash
-uv run alembic upgrade head                              # apply all migrations
-uv run alembic revision --autogenerate -m "describe it"  # draft a migration
-uv run alembic check                                     # fail if models and database differ
-uv run alembic downgrade -1                              # undo the last migration
-```
-
-- Always read an autogenerated migration before applying it.
-- Every new model module must be imported in `migrations/env.py`, or Alembic will not see its table.
-- Run `alembic upgrade head` first; autogenerate refuses to run when the database is behind.
-- Never edit a migration that has been applied; write a new one.
-
-## Tests
-
-```bash
-uv run pytest
-```
-
-Tests need `TEST_DATABASE_URL` to point at a real PostgreSQL database.
-
-- **`tests/unit/`**: business rules, called through the service layer, plus password and JWT behaviour.
-- **`tests/integration/`**: the HTTP routes, status codes and authorization.
-- **`tests/concurrency/`**: simultaneous requests competing for one courier, on separate connections.
-
-Each test runs inside a transaction that is rolled back afterwards, so tests do not
-leave data behind. The concurrency tests commit for real and clean up with `TRUNCATE`.
-If a test calls the service in a way that is meant to fail, commit your test setup
-first: a failing service call rolls back to the last commit.
-
-## Development
-
-```bash
-uv run ruff check .      # lint
-uv run ruff format .     # format
-```
-
-## Security notes
-
-- `.env` holds secrets and is ignored by git. Commit only `.env.example`.
-- Passwords are stored as Argon2 hashes and never returned by the API.
-- Access tokens last 15 minutes by default. Refresh tokens last 7 days, rotate on every use, and are stored only as hashes.
-- Emails are stored in lowercase, so `A@x.com` and `a@x.com` are the same account.
+Vite forwards API calls to the backend, so open only `localhost:5173`. See
+[frontend/README.md](frontend/README.md).

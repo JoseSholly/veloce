@@ -1,0 +1,27 @@
+# Local infrastructure for development and tests.
+#   docker compose up -d       start Redis
+#   docker compose down        stop them (data is kept in named volumes)
+#   docker compose down -v     stop them and delete the data
+#
+# PostgreSQL is not here on purpose: it runs on the host, and DATABASE_URL in
+# backend/.env points at it.
+#
+# Redis uses host port 6380, not 6379, so it doesn't collide with another
+# Redis already running on this machine.
+name: veloce
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  redis-data:
